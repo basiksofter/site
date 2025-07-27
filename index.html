@@ -619,9 +619,14 @@
         </div>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <!-- Подключаем Supabase JS клиент -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        // Инициализация Supabase клиента
+        const supabaseUrl = 'https://bflfwsfzgzwkdridhdsk.supabase.co'; // Замените на ваш URL Supabase
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmbGZ3c2Z6Z3p3a2RyaWRoZHNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2Mzc3MDUsImV4cCI6MjA2OTIxMzcwNX0.SNZmfvvJyvzvrbAZLlUPZmhkWfMlLT87Blc4als87qg'; // Замените на ваш анонимный ключ
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
         const translations = {
             en: {
                 loading: "Loading...",
@@ -897,52 +902,6 @@
             }
         }
 
-        // --- JSONBin.io config для приватного хранения пользователей ---
-        const JSONBIN_API_KEY = '$2a$10$3PXvAuYMF.OZV8QAoLQSuee7HfVsaKbnl.uz0/LivcP4J//maoqfK'; // Ваш API ключ
-        const JSONBIN_BIN_ID = '6871807a005f266d06b3acea'; // ID вашего bin
-        const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-
-        // Функция для получения всех пользователей из JSONBin
-        async function getUsers() {
-            try {
-                const response = await fetch(JSONBIN_URL, {
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Ошибка получения данных');
-                }
-                
-                const data = await response.json();
-                return data.record || { users: [] };
-            } catch (error) {
-                console.error('Ошибка получения пользователей:', error);
-                return { users: [] };
-            }
-        }
-
-        // Функция для сохранения пользователей в JSONBin
-        async function saveUsers(users) {
-            try {
-                const response = await fetch(JSONBIN_URL, {
-                    method: 'PUT',
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(users)
-                });
-                
-                return response.ok;
-            } catch (error) {
-                console.error('Ошибка сохранения пользователей:', error);
-                return false;
-            }
-        }
-
         let currentHWID = null;
 
         // Запрос HWID при загрузке страницы
@@ -951,7 +910,6 @@
                 window.chrome.webview.postMessage('get_hwid');
             }
         }
-
         // Функция для регистрации и входа пользователей с HWID
         async function handleUserAuth(username, password) {
             const usersData = await getUsers();
