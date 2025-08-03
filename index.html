@@ -897,112 +897,37 @@
             }
         }
 
-        // --- JSONBin.io config для приватного хранения пользователей ---
-        const JSONBIN_API_KEY = '$2a$10$3PXvAuYMF.OZV8QAoLQSuee7HfVsaKbnl.uz0/LivcP4J//maoqfK'; // Ваш API ключ
-        const JSONBIN_BIN_ID = '6871807a005f266d06b3acea'; // ID вашего bin
-        const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-
-        // Функция для получения всех пользователей из JSONBin
-        async function getUsers() {
-            try {
-                const response = await fetch(JSONBIN_URL, {
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Ошибка получения данных');
-                }
-                
-                const data = await response.json();
-                return data.record || { users: [] };
-            } catch (error) {
-                console.error('Ошибка получения пользователей:', error);
-                return { users: [] };
+        // --- Новый backend API ---
+        async function backendRegister(username, password) {
+            // Для демо: email можно генерировать как username@mail.com
+            const email = username + '@mail.com';
+            const response = await fetch('https://wexon-back.onrender.com/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration error');
             }
+            return data;
         }
 
-        // Функция для сохранения пользователей в JSONBin
-        async function saveUsers(users) {
-            try {
-                const response = await fetch(JSONBIN_URL, {
-                    method: 'PUT',
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(users)
-                });
-                
-                return response.ok;
-            } catch (error) {
-                console.error('Ошибка сохранения пользователей:', error);
-                return false;
+        async function backendLogin(username, password) {
+            const response = await fetch('https://wexon-back.onrender.com/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Login error');
             }
+            localStorage.setItem('wexon_token', data.token);
+            return data.user;
         }
 
-        let currentHWID = null;
-
-        // Запрос HWID при загрузке страницы
-        function requestHWID() {
-            if (window.chrome && window.chrome.webview) {
-                window.chrome.webview.postMessage('get_hwid');
-            }
-        }
-
-        // Функция для регистрации и входа пользователей с HWID
-        async function handleUserAuth(username, password) {
-            const usersData = await getUsers();
-            const existingUser = usersData.users.find(user => user.username === username);
-            
-            if (existingUser) {
-                // Проверяем пароль
-                if (existingUser.password === password) {
-                    // Если HWID пустой — обновляем его на текущий
-                    if (!existingUser.hwid || existingUser.hwid === "" || existingUser.hwid === "UNKNOWN_HWID") {
-                        existingUser.hwid = currentHWID;
-                        await saveUsers(usersData);
-                        return { status: 'login_success', user: existingUser };
-                    }
-                    // Проверяем HWID при входе
-                    if (existingUser.hwid && existingUser.hwid !== currentHWID) {
-                        return { status: 'hwid_mismatch' };
-                    }
-                    return { status: 'login_success', user: existingUser };
-                } else {
-                    return { status: 'wrong_password' };
-                }
-            } else {
-                // Находим максимальный UID среди всех пользователей
-                let maxUid = 0;
-                for (const user of usersData.users) {
-                    if (user.uid && user.uid > maxUid) {
-                        maxUid = user.uid;
-                    }
-                }
-                const newUid = maxUid + 1;
-                // Регистрируем нового пользователя с HWID и UID
-                const newUser = {
-                    uid: newUid,
-                    username: username,
-                    password: password,
-                    hwid: currentHWID,
-                    role: 'user',
-                    createdAt: new Date().toISOString()
-                };
-                usersData.users.push(newUser);
-                const saved = await saveUsers(usersData);
-                if (saved) {
-                    return { status: 'register_success', user: newUser };
-                } else {
-                    return { status: 'register_error' };
-                }
-            }
-        }
-
-        // --- Обработчик формы с JSONBin ---
+        // --- Обработчик формы ---
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('username').value.trim();
@@ -1010,50 +935,30 @@
             const submitBtn = document.querySelector('.login-btn');
             submitBtn.disabled = true;
             showLoading();
-            
-            // Запрашиваем HWID перед обработкой
-            requestHWID();
-            
-            // Ждем немного для получения HWID
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
             try {
-                const result = await handleUserAuth(username, password);
-                
-                if (result.status === 'login_success') {
-                    showNotification(`Вход выполнен!`, 'success');
-                    localStorage.setItem('currentUser', JSON.stringify({
-                        username: result.user.username,
-                        role: result.user.role,
-                        uid: result.user.uid
-                    }));
+                // Сначала пробуем логин
+                try {
+                    const user = await backendLogin(username, password);
+                    showNotification('Вход выполнен!', 'success');
                     setTimeout(() => {
-                        window.chrome.webview.postMessage('navigate_to_profile');
+                        window.location.href = '/profile.html'; // или window.chrome.webview.postMessage('navigate_to_profile');
                     }, 800);
                     saveRememberedData(username, password);
-                } else if (result.status === 'register_success') {
-                    showNotification(`Регистрация успешна!`, 'success');
-                    localStorage.setItem('currentUser', JSON.stringify({
-                        username: result.user.username,
-                        role: result.user.role,
-                        uid: result.user.uid
-                    }));
-                    setTimeout(() => {
-                        window.chrome.webview.postMessage('navigate_to_profile');
-                    }, 800);
-                    saveRememberedData(username, password);
-                } else if (result.status === 'wrong_password') {
-                    showNotification('Неверный пароль!', 'error');
-                    submitBtn.disabled = false;
-                } else if (result.status === 'hwid_mismatch') {
-                    showNotification('Аккаунт привязан к другому компьютеру!', 'error');
-                    submitBtn.disabled = false;
-                } else if (result.status === 'register_error') {
-                    showNotification('Ошибка регистрации', 'error');
-                    submitBtn.disabled = false;
-                } else {
-                    showNotification('Неизвестная ошибка', 'error');
-                    submitBtn.disabled = false;
+                } catch (loginErr) {
+                    // Если ошибка "User not found" — пробуем регистрацию
+                    if (loginErr.message && loginErr.message.includes('User not found')) {
+                        try {
+                            await backendRegister(username, password);
+                            showNotification('Регистрация успешна! Теперь войдите.', 'success');
+                            submitBtn.disabled = false;
+                        } catch (regErr) {
+                            showNotification(regErr.message, 'error');
+                            submitBtn.disabled = false;
+                        }
+                    } else {
+                        showNotification(loginErr.message, 'error');
+                        submitBtn.disabled = false;
+                    }
                 }
             } catch (err) {
                 showNotification('Ошибка: ' + err.message, 'error');
@@ -1070,8 +975,8 @@
 
         window.addEventListener('message', function(event) {
             if (event.data.startsWith('hwid:')) {
-                currentHWID = event.data.substring(5);
-                console.log('Получен HWID:', currentHWID);
+                // currentHWID = event.data.substring(5); // Удалено
+                console.log('Получен HWID:', event.data.substring(5)); // Удалено
             } else if (event.data.startsWith('remembered_data:')) {
                 const data = JSON.parse(event.data.substring(16));
                 document.getElementById('username').value = data.username;
@@ -1089,7 +994,7 @@
             
             setTimeout(() => {
                 loadingOverlay.classList.add('hidden');
-                requestHWID(); // Запрашиваем HWID при загрузке
+                // requestHWID(); // Удалено
                 window.chrome.webview.postMessage('check_remember_data');
             }, delay);
         });
