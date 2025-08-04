@@ -863,76 +863,185 @@
             window.chrome.webview.postMessage('close_window');
         });
 
-        function showNotification(message, type) {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            
-            setTimeout(() => {
-                notification.classList.add('show');
-            }, 10);
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
+        // Функции для показа уведомлений
+        function showError(message) {
+            showNotification(message, 'error');
         }
-
-        function showLoading() {
-            const submitBtn = document.querySelector('.login-btn');
-            submitBtn.innerHTML = `
-                <div style="width: 20px; height: 20px; border: 2px solid transparent; border-top: 2px solid currentColor; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                ${translations[currentLanguage].checking_data}
+        
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Удаляем предыдущие уведомления
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notification => notification.remove());
+            
+            // Создаем новое уведомление
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 1000;
+                max-width: 300px;
+                word-wrap: break-word;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                animation: slideIn 0.3s ease-out;
             `;
             
-            if (!document.querySelector('#spin-animation')) {
-                const style = document.createElement('style');
-                style.id = 'spin-animation';
-                style.textContent = `
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(style);
+            // Цвета в зависимости от типа
+            if (type === 'error') {
+                notification.style.backgroundColor = '#e74c3c';
+            } else if (type === 'success') {
+                notification.style.backgroundColor = '#27ae60';
+            } else {
+                notification.style.backgroundColor = '#3498db';
             }
-        }
-
-        // --- Backend API только для входа ---
-        async function backendLogin(username, password) {
-            // Получаем HWID из localStorage или запрашиваем
-            let hwid = localStorage.getItem('hwid') || '';
             
-            const response = await fetch('https://wexon-back.onrender.com/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, hwid })
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Login error');
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Автоматически удаляем через 5 секунд
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+        
+        // Добавляем CSS анимацию
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
             }
-            localStorage.setItem('wexon_token', data.token);
-            return data.user;
+        `;
+        document.head.appendChild(style);
+
+        // Функция для проверки HWID
+        async function checkHWID(username, hwid) {
+          try {
+            const response = await fetch('https://wexon-back.onrender.com/check-hwid', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ username, hwid })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+              return { success: true, canBind: data.canBind, message: data.message };
+            } else {
+              return { success: false, error: data.error };
+            }
+          } catch (error) {
+            console.error('HWID check error:', error);
+            return { success: false, error: 'Failed to check HWID' };
+          }
         }
 
-        // --- Обработчик формы только для входа ---
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        // Функция для входа в систему
+        async function backendLogin(username, password) {
+          try {
+            // Получаем HWID
+            const hwid = localStorage.getItem('hwid') || '';
+            
+            // Сначала проверяем HWID
+            const hwidCheck = await checkHWID(username, hwid);
+            
+            if (!hwidCheck.success) {
+              showError(hwidCheck.error);
+              return false;
+            }
+            
+            if (!hwidCheck.canBind) {
+              showError('Аккаунт привязан к другому компьютеру');
+              return false;
+            }
+            
+            // Если HWID подходит, выполняем логин
+            const response = await fetch('https://wexon-back.onrender.com/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ username, password, hwid })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+              // Сохраняем токен и данные пользователя
+              localStorage.setItem('wexon_token', data.token);
+              localStorage.setItem('currentUser', JSON.stringify(data.user));
+              
+              showSuccess('Успешный вход!');
+              
+              // Переходим к профилю
+              setTimeout(() => {
+                window.location.href = 'profile.html';
+              }, 1000);
+              
+              return true;
+            } else {
+              showError(data.error || 'Ошибка входа');
+              return false;
+            }
+          } catch (error) {
+            console.error('Login error:', error);
+            showError('Ошибка подключения к серверу');
+            return false;
+          }
+        }
+
+        // Обработчик формы входа
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
-            const submitBtn = document.querySelector('.login-btn');
+            
+            if (!username || !password) {
+                showError('Заполните все поля');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Вход...';
             submitBtn.disabled = true;
-            showLoading();
             
             try {
-                const user = await backendLogin(username, password);
-                showNotification('Вход выполнен!', 'success');
-                setTimeout(() => {
-                    window.location.href = '/profile.html'; // или window.chrome.webview.postMessage('navigate_to_profile');
-                }, 800);
-                saveRememberedData(username, password);
-            } catch (err) {
-                showNotification('Ошибка: ' + err.message, 'error');
+                // Выполняем вход с проверкой HWID
+                const success = await backendLogin(username, password);
+                
+                if (!success) {
+                    // Ошибка уже показана в backendLogin
+                    return;
+                }
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Ошибка входа в систему');
+            } finally {
+                // Восстанавливаем кнопку
+                submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             }
         });
