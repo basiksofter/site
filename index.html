@@ -897,27 +897,15 @@
             }
         }
 
-        // --- Новый backend API ---
-        async function backendRegister(username, password) {
-            // Для демо: email можно генерировать как username@mail.com
-            const email = username + '@mail.com';
-            const response = await fetch('https://wexon-back.onrender.com/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password })
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Registration error');
-            }
-            return data;
-        }
-
+        // --- Backend API только для входа ---
         async function backendLogin(username, password) {
+            // Получаем HWID из localStorage или запрашиваем
+            let hwid = localStorage.getItem('hwid') || '';
+            
             const response = await fetch('https://wexon-back.onrender.com/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password, hwid })
             });
             const data = await response.json();
             if (!response.ok) {
@@ -927,7 +915,7 @@
             return data.user;
         }
 
-        // --- Обработчик формы ---
+        // --- Обработчик формы только для входа ---
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('username').value.trim();
@@ -935,31 +923,14 @@
             const submitBtn = document.querySelector('.login-btn');
             submitBtn.disabled = true;
             showLoading();
+            
             try {
-                // Сначала пробуем логин
-                try {
-                    const user = await backendLogin(username, password);
-                    showNotification('Вход выполнен!', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/profile.html'; // или window.chrome.webview.postMessage('navigate_to_profile');
-                    }, 800);
-                    saveRememberedData(username, password);
-                } catch (loginErr) {
-                    // Если ошибка "User not found" — пробуем регистрацию
-                    if (loginErr.message && loginErr.message.includes('User not found')) {
-                        try {
-                            await backendRegister(username, password);
-                            showNotification('Регистрация успешна! Теперь войдите.', 'success');
-                            submitBtn.disabled = false;
-                        } catch (regErr) {
-                            showNotification(regErr.message, 'error');
-                            submitBtn.disabled = false;
-                        }
-                    } else {
-                        showNotification(loginErr.message, 'error');
-                        submitBtn.disabled = false;
-                    }
-                }
+                const user = await backendLogin(username, password);
+                showNotification('Вход выполнен!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/profile.html'; // или window.chrome.webview.postMessage('navigate_to_profile');
+                }, 800);
+                saveRememberedData(username, password);
             } catch (err) {
                 showNotification('Ошибка: ' + err.message, 'error');
                 submitBtn.disabled = false;
@@ -975,8 +946,9 @@
 
         window.addEventListener('message', function(event) {
             if (event.data.startsWith('hwid:')) {
-                // currentHWID = event.data.substring(5); // Удалено
-                console.log('Получен HWID:', event.data.substring(5)); // Удалено
+                const hwid = event.data.substring(5);
+                localStorage.setItem('hwid', hwid);
+                console.log('Получен HWID:', hwid);
             } else if (event.data.startsWith('remembered_data:')) {
                 const data = JSON.parse(event.data.substring(16));
                 document.getElementById('username').value = data.username;
@@ -988,13 +960,20 @@
             }
         });
 
+        // Запрос HWID при загрузке страницы
+        function requestHWID() {
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage('get_hwid');
+            }
+        }
+
         window.addEventListener('load', function() {
             const loadingOverlay = document.getElementById('loadingOverlay');
             const delay = Math.random() * 200 + 300;
             
             setTimeout(() => {
                 loadingOverlay.classList.add('hidden');
-                // requestHWID(); // Удалено
+                requestHWID(); // Запрашиваем HWID при загрузке
                 window.chrome.webview.postMessage('check_remember_data');
             }, delay);
         });
