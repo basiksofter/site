@@ -2065,8 +2065,10 @@
             const wrapper = document.createElement('div');
             wrapper.className = "custom-alert flex flex-col gap-2 w-60 sm:w-72 text-[10px] sm:text-xs z-50";
             wrapper.style.position = "fixed";
-            wrapper.style.top = "30px";
-            wrapper.style.right = "30px";
+            wrapper.style.bottom = "30px";
+            wrapper.style.left = "30px";
+            wrapper.style.top = "";
+            wrapper.style.right = "";
             wrapper.style.zIndex = 9999;
 
             const alert = document.createElement('div');
