@@ -863,56 +863,64 @@
             window.chrome.webview.postMessage('close_window');
         });
 
-        // Функции для показа уведомлений
-        function showError(message) {
-            showNotification(message, 'error');
-        }
-        
-        function showSuccess(message) {
-            showNotification(message, 'success');
-        }
-        
-        function showNotification(message, type = 'info') {
-            // Удаляем предыдущие уведомления
-            const existingNotifications = document.querySelectorAll('.notification');
-            existingNotifications.forEach(notification => notification.remove());
-            
-            // Создаем новое уведомление
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 15px 20px;
-                border-radius: 8px;
-                color: white;
-                font-weight: 500;
-                z-index: 1000;
-                max-width: 300px;
-                word-wrap: break-word;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                animation: slideIn 0.3s ease-out;
+        // Новая функция уведомлений
+        function showNotification({ title = "Успешно!", description = "", type = "success" }) {
+            // Удаляем старые уведомления
+            document.querySelectorAll('.custom-alert').forEach(e => e.remove());
+
+            const wrapper = document.createElement('div');
+            wrapper.className = "custom-alert flex flex-col gap-2 w-60 sm:w-72 text-[10px] sm:text-xs z-50";
+            wrapper.style.position = "fixed";
+            wrapper.style.bottom = "30px";
+            wrapper.style.left = "30px";
+            wrapper.style.top = "";
+            wrapper.style.right = "";
+            wrapper.style.zIndex = 9999;
+
+            const alert = document.createElement('div');
+            alert.className = `cursor-default flex items-center justify-between w-full h-14 rounded-lg px-[10px] ${type === "success" ? "bg-[#232531]" : "bg-[#311e1e]"}`;
+
+            // Иконка
+            const iconWrap = document.createElement('div');
+            iconWrap.className = `flex gap-2`;
+            const iconBg = document.createElement('div');
+            iconBg.className = `${type === "success" ? "text-[#2b9875]" : "text-[#e74c3c]"} bg-white/5 backdrop-blur-xl p-1 rounded-lg`;
+            iconBg.innerHTML = type === "success"
+                ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"></path></svg>`
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path></svg>`;
+
+            // Текст
+            const textWrap = document.createElement('div');
+            textWrap.innerHTML = `
+                <p class="text-white" style="font-size:13px;font-weight:600;">${title}</p>
+                <p class="text-gray-500" style="font-size:11px;">${description}</p>
             `;
-            
-            // Цвета в зависимости от типа
-            if (type === 'error') {
-                notification.style.backgroundColor = '#e74c3c';
-            } else if (type === 'success') {
-                notification.style.backgroundColor = '#27ae60';
-            } else {
-                notification.style.backgroundColor = '#3498db';
-            }
-            
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            
-            // Автоматически удаляем через 5 секунд
+
+            iconWrap.appendChild(iconBg);
+            iconWrap.appendChild(textWrap);
+
+            // Кнопка закрытия
+            const closeBtn = document.createElement('button');
+            closeBtn.className = "text-gray-600 hover:bg-white/5 p-1 rounded-md transition-colors ease-linear";
+            closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path></svg>`;
+            closeBtn.onclick = () => wrapper.remove();
+
+            alert.appendChild(iconWrap);
+            alert.appendChild(closeBtn);
+            wrapper.appendChild(alert);
+            document.body.appendChild(wrapper);
+
             setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 5000);
+                wrapper.remove();
+            }, 3000);
+        }
+
+        // Заменить все вызовы showNotification(message, type) на showNotification({title, description, type})
+        function showError(message) {
+            showNotification({ title: 'Ошибка!', description: message, type: 'error' });
+        }
+        function showSuccess(message) {
+            showNotification({ title: 'Успешно!', description: message, type: 'success' });
         }
         
         // Добавляем CSS анимацию
