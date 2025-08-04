@@ -1961,7 +1961,6 @@
                 if (response.ok) {
                     return await response.json();
                 } else {
-                    // Если токен недействителен, удаляем его
                     localStorage.removeItem('wexon_token');
                     return null;
                 }
@@ -2058,37 +2057,61 @@
 
 
 
-        // Функция для показа уведомлений
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            notification.className = 'notification';
-            notification.textContent = message;
-            
-            if (type === 'error') {
-                notification.style.background = 'var(--danger-bg)';
-                notification.style.borderColor = 'var(--danger-border)';
-                notification.style.color = 'var(--danger-text)';
-            }
-            
-            document.body.appendChild(notification);
-            
+        // Новая функция уведомлений
+        function showNotification({ title = "Успешно!", description = "", type = "success" }) {
+            // Удаляем старые уведомления
+            document.querySelectorAll('.custom-alert').forEach(e => e.remove());
+
+            const wrapper = document.createElement('div');
+            wrapper.className = "custom-alert flex flex-col gap-2 w-60 sm:w-72 text-[10px] sm:text-xs z-50";
+            wrapper.style.position = "fixed";
+            wrapper.style.top = "30px";
+            wrapper.style.right = "30px";
+            wrapper.style.zIndex = 9999;
+
+            const alert = document.createElement('div');
+            alert.className = `cursor-default flex items-center justify-between w-full h-14 rounded-lg px-[10px] ${type === "success" ? "bg-[#232531]" : "bg-[#311e1e]"}`;
+
+            // Иконка
+            const iconWrap = document.createElement('div');
+            iconWrap.className = `flex gap-2`;
+            const iconBg = document.createElement('div');
+            iconBg.className = `${type === "success" ? "text-[#2b9875]" : "text-[#e74c3c]"} bg-white/5 backdrop-blur-xl p-1 rounded-lg`;
+            iconBg.innerHTML = type === "success"
+                ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"></path></svg>`
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path></svg>`;
+
+            // Текст
+            const textWrap = document.createElement('div');
+            textWrap.innerHTML = `
+                <p class="text-white" style="font-size:13px;font-weight:600;">${title}</p>
+                <p class="text-gray-500" style="font-size:11px;">${description}</p>
+            `;
+
+            iconWrap.appendChild(iconBg);
+            iconWrap.appendChild(textWrap);
+
+            // Кнопка закрытия
+            const closeBtn = document.createElement('button');
+            closeBtn.className = "text-gray-600 hover:bg-white/5 p-1 rounded-md transition-colors ease-linear";
+            closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path></svg>`;
+            closeBtn.onclick = () => wrapper.remove();
+
+            alert.appendChild(iconWrap);
+            alert.appendChild(closeBtn);
+            wrapper.appendChild(alert);
+            document.body.appendChild(wrapper);
+
             setTimeout(() => {
-                notification.classList.add('show');
-            }, 100);
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => {
-                    document.body.removeChild(notification);
-                }, 300);
-            }, 5000);
+                wrapper.remove();
+            }, 3000);
         }
 
         document.getElementById('launchBtn').addEventListener('click', async function(e) {
             // Проверяем права доступа к выбранной версии
             const currentUser = localStorage.getItem('currentUser');
             if (!currentUser) {
-                showNotification('Ошибка: пользователь не авторизован', 'error');
+                showNotification({ title: 'Ошибка!', description: 'Пользователь не авторизован', type: 'error' });
                 return;
             }
 
@@ -2098,7 +2121,7 @@
                 
                 // Проверяем права доступа
                 if (!canLaunchSelectedVersion(accountType, selectedVersion)) {
-                    showNotification('Для получения доступа к этой версии клиента приобретите подписку через личного бота в Telegram: @wexonchannel', 'error');
+                    showNotification({ title: 'Ошибка!', description: 'Для получения доступа к этой версии клиента приобретите подписку через личного бота в Telegram: @wexonchannel', type: 'error' });
                     e.preventDefault();
                     return;
                 }
@@ -2108,7 +2131,7 @@
                     const expiryDate = new Date(userData.licenseExpiry);
                     const now = new Date();
                     if (expiryDate < now) {
-                        showNotification('Ваша лицензия истекла. Пожалуйста, активируйте новый ключ.', 'error');
+                        showNotification({ title: 'Ошибка!', description: 'Ваша лицензия истекла. Пожалуйста, активируйте новый ключ.', type: 'error' });
                         return;
                     }
                 }
@@ -2139,7 +2162,7 @@
                                     status.textContent = translations[currentLanguage].launching;
                                     setTimeout(() => {
                                         modal.classList.remove('show');
-                                        showNotification('Minecraft запущен успешно!', 'success');
+                                        showNotification({ title: 'Успешно!', description: 'Minecraft запущен успешно!', type: 'success' });
                                     }, 2000);
                                 } else {
                                     throw new Error(result.error || 'Unknown launch error');
@@ -2163,14 +2186,14 @@
                         errorMessage = 'Превышено время ожидания запуска.';
                     }
                     
-                    showNotification(errorMessage, 'error');
+                    showNotification({ title: 'Ошибка!', description: errorMessage, type: 'error' });
                     
                     setTimeout(() => {
                         modal.classList.remove('show');
                     }, 3000);
                 }
             } catch (error) {
-                showNotification('Ошибка запуска: ' + error.message, 'error');
+                showNotification({ title: 'Ошибка!', description: 'Ошибка запуска: ' + error.message, type: 'error' });
             }
         }, true);
     </script>
